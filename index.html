@@ -1,0 +1,202 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Music Hue</title>
+    <link rel="stylesheet" href="bootstrap.min.css">
+    <script src="handlebars-v4.0.5.js"></script>
+    <script src="http://code.jquery.com/jquery-1.10.1.min.js"></script>
+    <style>
+    </style>
+  </head>
+
+  <body onload="checkForUserData()">
+    <!-- Visual Components to Prompt User for Song -->
+    <h4><small><span id="userName" style="float:right; padding-right: 80px; visibility: hidden;">here</span></small></h4>
+    <div class="container">
+      <h1 position="absolute">Search for a Song
+      <a href = "/login" class = "btn btn-info" align="right">Favorites</a>
+      </h1>
+      <form id="search-form">
+        <input type="text" id="query" placeholder="Enter a song name:" class="form-control"/>
+        <input type="submit" id="search" class="btn btn-danger" value="Make it Lit" />  
+        </form>   
+      <div id="results"></div>
+      <div id="userT"></div>
+    </div>
+
+    <!-- Template Used to Send Data Back to User -->
+    <script id="results-template" type="text/x-handlebars-template">
+      {{#each items}}
+      {{#if track.name}}
+            <br>
+            <h1> {{track.name}} </h1>
+      <h3> {{track.artists.0.name}} </h3>
+      <div style="width: 300px; height: 300px; background-size: cover; border:5px solid black; background-image:url({{track.album.images.0.url}} )" data-track-id="{{track.id}}" class="cover"> </div> 
+      {{else}}
+      <br>
+            <h1> {{name}} </h1>
+      <h3> {{artists.0.name}} </h3>
+      <div style="width: 300px; height: 300px; background-size: cover; border:5px solid black; background-image:url({{album.images.0.url}} )" data-track-id="{{id}}" class="cover"> </div> 
+      {{/if}}      
+      {{/each}}
+    </script>
+
+    <!-- Script Containing Code to Get Data -->
+    <script>
+
+    var fetchTracks = function (trackID, callback) {
+    $.ajax({
+        url: '//api.spotify.com/v1/tracks/' + trackID,
+        success: function (response) {
+            callback(response);
+        }
+    });
+};
+
+  var color;
+    results.addEventListener('click', function (e) {
+    var target = e.target;
+
+    // Download the audio analyzer data for the track
+    // Parse the href (contains 2 params access_token and refresh)
+    var loc = window.location.href;
+    var brokenLoc = loc.substring(loc.indexOf('access_token='), loc.length);
+    var accessToken = brokenLoc.substring(13, brokenLoc.indexOf('refresh_token') - 1);
+
+    // Send request for data
+    function getSongData() { $.ajax({
+      url: 'https://api.spotify.com/v1/audio-features/' + target.getAttribute('data-track-id'),
+      data: {
+      access_token: accessToken,
+      // Gets the track - search query
+      },
+      success: function (response) {
+
+      // Calculate color
+      var dance = response.danceability * 255;
+      var energy = response.energy * 255;
+      var valence = 255 - (response.energy * 255);
+
+      if(valence > energy && valence > dance && valence > 200)
+      {
+        valence = 240;
+      }
+      else if(energy > valence && energy > dance && energy > 200)
+      {
+        energy = 255;
+        valence = 255;
+      }
+      else
+      {
+        dance = 255;
+      }
+
+      dance = Math.round(dance).toString(16);
+      energy = Math.round(energy).toString(16);
+      valence = Math.round(valence).toString(16);
+
+      target.style.borderColor = '#' + valence + '' + energy + '' + dance;
+      }
+    }); }
+
+    getSongData();
+
+    // Play the Audio File
+    if (target !== null && target.classList.contains('cover')) {
+        if (target.classList.contains(playingCssClass)) {
+            audioObject.pause();
+        } else {
+            if (audioObject) {
+                audioObject.pause();
+            }
+            fetchTracks(target.getAttribute('data-track-id'), function (data) {
+                audioObject = new Audio(data.preview_url);
+                audioObject.play();
+                target.classList.add(playingCssClass);
+                audioObject.addEventListener('ended', function () {
+                    target.classList.remove(playingCssClass);
+                });
+                audioObject.addEventListener('pause', function () {
+                    target.classList.remove(playingCssClass);
+                });
+            });
+        }
+    }
+});
+
+
+    var templateSource = document.getElementById('results-template').innerHTML,
+  template = Handlebars.compile(templateSource),
+  resultsPlaceholder = document.getElementById('results'),
+  playingCssClass = 'playing',
+  audioObject = null;
+
+var searchTracks = function (query) {
+$.ajax({
+url: 'https://api.spotify.com/v1/search',
+data: {
+q: query,
+type: 'track'
+// Gets the track - search query
+},
+success: function (response) {
+resultsPlaceholder.innerHTML = template(response.tracks);
+}
+});
+};
+
+document.getElementById('search-form').addEventListener('submit', function (e) {
+e.preventDefault();
+searchTracks(document.getElementById('query').value);
+}, false);
+
+function clearData() {
+  $('results-template').empty();
+}
+
+// Check to see if URL parameters exist and if so use them to collect user data
+function checkForUserData() {
+var loc = window.location.href;
+
+  // Check for the URL's params if contains first parameter
+  if(loc.includes('access_token'))
+  {
+    // Parse the href (contains 2 params access_token and refresh)
+    var brokenLoc = loc.substring(loc.indexOf('access_token='), loc.length);
+    var accessToken = brokenLoc.substring(13, brokenLoc.indexOf('refresh_token') - 1);
+    
+    // Send request for user favorites
+    function getUserTracks() { $.ajax({
+url: 'https://api.spotify.com/v1/me/tracks',
+data: {
+access_token: accessToken,
+// Gets the track - search query
+},
+success: function (response) {
+  resultsPlaceholder.innerHTML = template(response);
+}
+}); }
+
+        function setUserName() { $.ajax({
+url: 'https://api.spotify.com/v1/me',
+data: {
+access_token: accessToken,
+// Gets the track - search query
+},
+success: function (response) {
+    document.getElementById("userName").style.visibility = "visible";
+  document.getElementById("userName").innerHTML = "User: " + response.id;
+}
+}); }
+
+    var userTracks = getUserTracks();
+    setUserName();
+  }
+  else
+  {
+        window.location = "/login";
+  }
+}
+    </script>
+  </body>
+</html>
